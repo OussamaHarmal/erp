@@ -30,7 +30,10 @@ app = FastAPI(
 # ─── CORS Middleware ──────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_allowed_origins(),
+    allow_origins=[
+        "http://localhost:5173",
+        "https://erp-peach-nine.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
