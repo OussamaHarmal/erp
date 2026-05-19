@@ -1,0 +1,4 @@
+# Optional packages for Sage desktop UI automation on Windows.
+# Install only on the Windows machine where Sage 100 Comptabilité is installed.
+pywin32==306
+pywinauto==0.6.8
