@@ -516,3 +516,17 @@ class SageExportBatch(Base):
     status = Column(String(30), default="generated")
     errors = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+class SageExportJob(Base):
+    __tablename__ = "sage_export_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    filename = Column(String, nullable=False)
+
+    content = Column(Text, nullable=False)
+
+    status = Column(String, default="pending")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    downloaded_at = Column(DateTime, nullable=True)

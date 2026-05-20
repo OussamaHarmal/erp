@@ -408,17 +408,8 @@ class RenewalRequestResponse(BaseModel):
     class Config:
         from_attributes = True
         
-class SageExportJob(BaseModel):
-    __tablename__ = "sage_export_jobs"
-
-    id = Column(Integer, primary_key=True, index=True)
-
-    filename = Column(String, nullable=False)
-
-    content = Column(Text, nullable=False)
-
-    status = Column(String, default="pending")
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    downloaded_at = Column(DateTime, nullable=True)
+class SageExportJobResponse(BaseModel):
+    id: int
+    filename: str
+    status: str
+    created_at: datetime
