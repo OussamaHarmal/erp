@@ -34,9 +34,9 @@ from ..services.email_service import send_contract_invoice_email, send_email_wit
 router = APIRouter(prefix="/contracts", tags=["Contracts"])
 
 DURATION_PRICES = {
-    1: 100.0,
-    3: 250.0,
-    6: 500.0,
+    1: 65.0,
+    3: 195.0,
+    6: 390.0,
 }
 RENEWAL_MONTHLY_PRICE = 165.0
 

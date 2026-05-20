@@ -4,12 +4,21 @@ import { contractsAPI, clientsAPI } from '../../services/api';
 import { Building2, CheckCircle2, FileText, Send, UserRound, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const DURATION_PRICES = { 1: 65, 3: 195, 6: 390 };
+const MONTHLY_PRICE = 65;
+const DURATIONS = [1, 3, 6];
+
+const addMonths = (dateStr, months) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + Number(months));
+  return d.toISOString().slice(0, 10);
+};
 
 const emptyForm = {
   contract_type: 'Domiciliation Juridique',
   start_date: new Date().toISOString().slice(0, 10),
   duration_months: '1',
+  end_date: addMonths(new Date().toISOString().slice(0, 10), 1),
   company_name: '',
   company_ice: '',
   company_rc: '',
@@ -31,6 +40,7 @@ export default function ContractRequestPage() {
   useEffect(() => {
     if (!user?.id) return;
     setLoadingProfile(true);
+
     clientsAPI.get(user.id)
       .then(r => {
         const p = r.data?.profile || {};
@@ -50,23 +60,40 @@ export default function ContractRequestPage() {
       .finally(() => setLoadingProfile(false));
   }, [user?.id]);
 
-  const price = useMemo(() => DURATION_PRICES[Number(form.duration_months)] || 0, [form.duration_months]);
-  const endDate = useMemo(() => {
-    if (!form.start_date || !form.duration_months) return '';
-    const d = new Date(form.start_date);
-    d.setMonth(d.getMonth() + Number(form.duration_months));
-    return d.toISOString().slice(0, 10);
-  }, [form.start_date, form.duration_months]);
+  const duration = Number(form.duration_months || 1);
+  const price = duration * MONTHLY_PRICE;
+  const calculatedEndDate = useMemo(
+    () => addMonths(form.start_date, duration),
+    [form.start_date, duration]
+  );
 
   const missingProfile = useMemo(() => {
     const required = [
-      ['first_name', 'Prénom'], ['last_name', 'Nom'], ['cin_number', 'CIN'],
-      ['phone', 'Téléphone'], ['address', 'Adresse'], ['city', 'Ville'],
+      ['first_name', 'Prénom'],
+      ['last_name', 'Nom'],
+      ['cin_number', 'CIN'],
+      ['phone', 'Téléphone'],
+      ['address', 'Adresse'],
+      ['city', 'Ville'],
     ];
     return required.filter(([k]) => !profile?.[k]).map(([, label]) => label);
   }, [profile]);
 
-  const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const updateField = (field, value) => {
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+
+      if (field === 'duration_months') {
+        next.end_date = addMonths(prev.start_date, Number(value));
+      }
+
+      if (field === 'start_date') {
+        next.end_date = addMonths(value, Number(prev.duration_months || 1));
+      }
+
+      return next;
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -83,11 +110,15 @@ export default function ContractRequestPage() {
     try {
       const payload = {
         ...form,
-        duration_months: Number(form.duration_months),
+        duration_months: duration,
         start_date: new Date(form.start_date).toISOString(),
+        end_date: new Date(form.end_date || calculatedEndDate).toISOString(),
+        price,
+        value: price,
       };
+
       await contractsAPI.request(payload);
-      setMessage('Demande envoyée avec succès. Le contrat et la facture sont générés automatiquement. Vos informations de profil ont été réutilisées sans répétition.');
+      setMessage('Demande envoyée avec succès. Le contrat et la facture sont générés automatiquement.');
     } catch (err) {
       setError(err.response?.data?.detail || 'Erreur lors de l’envoi de la demande.');
     } finally {
@@ -102,7 +133,9 @@ export default function ContractRequestPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Demande de contrat de domiciliation</h1>
-          <p className="page-subtitle">Vos informations personnelles sont reprises automatiquement depuis votre profil. Vous ne remplissez ici que le contrat et les informations société.</p>
+          <p className="page-subtitle">
+            Vos informations personnelles sont reprises automatiquement depuis votre profil.
+          </p>
         </div>
       </div>
 
@@ -112,6 +145,7 @@ export default function ContractRequestPage() {
       <div style={styles.grid}>
         <form onSubmit={handleSubmit} className="card" style={styles.formCard}>
           <SectionTitle icon={<UserRound size={18} />} title="Informations du représentant" />
+
           {loadingProfile ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><div className="spinner" /></div>
           ) : (
@@ -125,16 +159,23 @@ export default function ContractRequestPage() {
                 <Info label="Adresse" value={profile?.address} />
                 <Info label="Naissance" value={profile?.birth_date ? profile.birth_date.slice(0, 10) : '—'} />
               </div>
+
               {missingProfile.length > 0 && (
                 <div className="alert alert-warning" style={{ marginTop: 12 }}>
-                  Profil incomplet : {missingProfile.join(', ')}. <Link to="/client/profile" style={{ color: 'inherit', fontWeight: 800 }}>Compléter mon profil</Link>
+                  Profil incomplet : {missingProfile.join(', ')}.{' '}
+                  <Link to="/client/profile" style={{ color: 'inherit', fontWeight: 800 }}>
+                    Compléter mon profil
+                  </Link>
                 </div>
               )}
             </div>
           )}
 
           <SectionTitle icon={<Building2 size={18} />} title="Informations de la société domiciliée" />
-          <p style={styles.helpText}>Ces champs sont préremplis depuis votre profil si disponibles. Si vous les modifiez ici, le backend mettra aussi votre profil à jour.</p>
+          <p style={styles.helpText}>
+            Ces champs sont préremplis depuis votre profil si disponibles.
+          </p>
+
           <div style={styles.twoCols}>
             <Input label="Nom société" value={form.company_name} onChange={v => updateField('company_name', v)} required />
             <Input label="ICE" value={form.company_ice} onChange={v => updateField('company_ice', v)} />
@@ -143,85 +184,93 @@ export default function ContractRequestPage() {
             <Input label="Email société" type="email" value={form.company_email} onChange={v => updateField('company_email', v)} />
             <Input label="Téléphone société" value={form.company_phone} onChange={v => updateField('company_phone', v)} />
           </div>
+
           <Input label="Adresse société" value={form.company_address} onChange={v => updateField('company_address', v)} />
 
           <SectionTitle icon={<FileText size={18} />} title="Contrat & durée" />
 
-<div style={styles.twoCols}>
-  <div className="form-group">
-    <label className="form-label">Type de contrat</label>
-    <select
-      className="form-input"
-      value={form.contract_type}
-      onChange={e => updateField('contract_type', e.target.value)}
-      required
-    >
-      <option value="Domiciliation Juridique">Domiciliation Juridique</option>
-      <option value="Centre d’Affaires">Centre d’Affaires</option>
-      <option value="Conseil Juridique – Fiscal et Comptable">
-        Conseil Juridique – Fiscal et Comptable
-      </option>
-    </select>
-  </div>
+          <div style={styles.twoCols}>
+            <div className="form-group">
+              <label className="form-label">Type de contrat</label>
+              <select
+                className="form-input"
+                value={form.contract_type}
+                onChange={e => updateField('contract_type', e.target.value)}
+                required
+              >
+                <option value="Domiciliation Juridique">Domiciliation Juridique</option>
+                <option value="Centre d’Affaires">Centre d’Affaires</option>
+                <option value="Conseil Juridique – Fiscal et Comptable">
+                  Conseil Juridique – Fiscal et Comptable
+                </option>
+              </select>
+            </div>
 
-  
-    <div className="form-group">
-      <label className="form-label">Date début</label>
-      <input
-        type="date"
-        className="form-input"
-        value={form.start_date}
-        onChange={e => {
-          const startDate = e.target.value;
-          const months = Number(form.duration_months || 1);
+            <div className="form-group">
+              <label className="form-label">Durée</label>
+              <select
+                className="form-input"
+                value={form.duration_months}
+                onChange={e => updateField('duration_months', e.target.value)}
+                required
+              >
+                {DURATIONS.map(m => (
+                  <option key={m} value={m}>
+                    {m} mois — {m * MONTHLY_PRICE} MAD
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          updateField('start_date', startDate);
+            <div className="form-group">
+              <label className="form-label">Date début</label>
+              <input
+                type="date"
+                className="form-input"
+                value={form.start_date}
+                onChange={e => updateField('start_date', e.target.value)}
+                required
+              />
+            </div>
 
-          if (startDate) {
-            const start = new Date(startDate);
-            const end = new Date(start);
-            end.setMonth(end.getMonth() + months);
+            <div className="form-group">
+              <label className="form-label">Date fin</label>
+              <input
+                type="date"
+                className="form-input"
+                value={form.end_date || calculatedEndDate}
+                onChange={e => updateField('end_date', e.target.value)}
+                required
+              />
+            </div>
 
-            updateField('end_date', end.toISOString().split('T')[0]);
-            updateField('amount', months * 65);
-          }
-        }}
-        required
-      />
-    </div>
-
-    <div className="form-group">
-      <label className="form-label">Date fin</label>
-      <input
-        type="date"
-        className="form-input"
-        value={form.end_date}
-        onChange={e => updateField('end_date', e.target.value)}
-        required
-      />
-    </div>
-
-    <div className="form-group">
-      <label className="form-label">Montant total</label>
-      <input
-        type="text"
-        className="form-input"
-        value={`${Number(form.duration_months || 1) * 65} MAD`}
-        readOnly
-      />
-    </div>
-  </div>
+            <div className="form-group">
+              <label className="form-label">Montant total</label>
+              <input
+                type="text"
+                className="form-input"
+                value={`${price.toLocaleString()} MAD`}
+                readOnly
+              />
+            </div>
+          </div>
 
           <div style={styles.priceBox}>
             <span>Prix automatique</span>
             <strong>{price.toLocaleString()} MAD</strong>
           </div>
+
           <div style={styles.periodBox}>
             <span>Période facture/contrat</span>
-            <strong>{form.start_date || '—'} → {endDate || '—'}</strong>
+            <strong>{form.start_date || '—'} → {form.end_date || calculatedEndDate || '—'}</strong>
           </div>
 
-          <button className="btn btn-primary" type="submit" disabled={saving || loadingProfile || missingProfile.length > 0} style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}>
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={saving || loadingProfile || missingProfile.length > 0}
+            style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}
+          >
             {saving ? <span className="spinner" /> : <Send size={16} />}
             {saving ? 'Envoi...' : 'Envoyer la demande'}
           </button>
@@ -229,6 +278,7 @@ export default function ContractRequestPage() {
 
         <aside className="card" style={styles.previewCard}>
           <h3 style={{ marginTop: 0 }}>Aperçu du contrat</h3>
+
           <p style={styles.muted}>Partie fixe</p>
           <div style={styles.fixedBox}>
             <strong>UNIVERSAL INVEST STRATEGY SARL AU</strong><br />
@@ -245,9 +295,9 @@ export default function ContractRequestPage() {
           <div style={styles.previewLine}><span>Société</span><strong>{form.company_name || '—'}</strong></div>
           <div style={styles.previewLine}><span>ICE / RC</span><strong>{form.company_ice || '—'} / {form.company_rc || '—'}</strong></div>
           <div style={styles.previewLine}><span>Date début</span><strong>{form.start_date || '—'}</strong></div>
-          <div style={styles.previewLine}><span>Date fin calculée</span><strong>{endDate || '—'}</strong></div>
-          <div style={styles.previewLine}><span>Durée</span><strong>{form.duration_months} mois</strong></div>
-          <div style={styles.previewLine}><span>Prix</span><strong>{price} MAD</strong></div>
+          <div style={styles.previewLine}><span>Date fin</span><strong>{form.end_date || calculatedEndDate || '—'}</strong></div>
+          <div style={styles.previewLine}><span>Durée</span><strong>{duration} mois</strong></div>
+          <div style={styles.previewLine}><span>Prix</span><strong>{price.toLocaleString()} MAD</strong></div>
         </aside>
       </div>
     </div>
@@ -262,7 +312,13 @@ function Input({ label, value, onChange, type = 'text', required = false }) {
   return (
     <div className="form-group">
       <label className="form-label">{label}{required ? ' *' : ''}</label>
-      <input className="form-input" type={type} value={value || ''} onChange={e => onChange(e.target.value)} required={required} />
+      <input
+        className="form-input"
+        type={type}
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        required={required}
+      />
     </div>
   );
 }
