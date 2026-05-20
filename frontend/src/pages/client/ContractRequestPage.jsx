@@ -119,12 +119,24 @@ export default function ContractRequestPage() {
 
       await contractsAPI.request(payload);
       setMessage('Demande envoyée avec succès. Le contrat et la facture sont générés automatiquement.');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur lors de l’envoi de la demande.');
-    } finally {
-      setSaving(false);
-    }
-  };
+    }  catch (err) {
+        const detail = err.response?.data?.detail;
+
+        let msg = "Erreur lors de l’envoi de la demande.";
+
+        if (typeof detail === "string") {
+          msg = detail;
+        } else if (Array.isArray(detail)) {
+          msg = detail.map(e => e.msg || JSON.stringify(e)).join(" | ");
+        } else if (detail && typeof detail === "object") {
+          msg = detail.msg || detail.message || JSON.stringify(detail);
+        }
+
+        setError(msg);
+      } finally {
+            setSaving(false);
+          }
+        };
 
   const clientName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || user?.email || '—';
 
