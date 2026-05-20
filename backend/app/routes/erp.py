@@ -127,12 +127,21 @@ def preview_sage_export(
     current_user: User = Depends(require_directeur),
     db: Session = Depends(get_db),
 ):
-    invoices = invoice_query(
-        db,
-        start_date=start_date,
-        end_date=end_date,
-        only_not_exported=only_not_exported,
-    ).limit(20).all()
+
+    invoices = (
+        invoice_query(
+            db,
+            start_date=start_date,
+            end_date=end_date,
+            only_not_exported=only_not_exported,
+        )
+        .options(
+            joinedload(Invoice.items),
+            joinedload(Invoice.client),
+        )
+        .limit(20)
+        .all()
+    )
     errors = collect_sage_errors(invoices)
     preview = []
     for inv in invoices:
@@ -155,12 +164,19 @@ def export_sage_txt(
     current_user: User = Depends(require_directeur),
     db: Session = Depends(get_db),
 ):
-    invoices = invoice_query(
+    invoices = (
+    invoice_query(
         db,
         start_date=start_date,
         end_date=end_date,
         only_not_exported=only_not_exported,
-    ).all()
+    )
+    .options(
+        joinedload(Invoice.items),
+        joinedload(Invoice.client),
+    )
+    .all()
+    )
     errors = collect_sage_errors(invoices)
     filename = f"SAGE_VENTES_{start_date or 'DEBUT'}_{end_date or 'FIN'}.txt".replace("-", "")
 
