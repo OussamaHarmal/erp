@@ -577,22 +577,28 @@ def approve_contract(
         "invoice_id": str(invoice.id),
     }
 
-@router.patch("/{contract_id}/reject", response_model=ContractResponse)
+@router.patch("/{contract_id}/reject")
 def reject_contract(
     contract_id: uuid.UUID,
-    reason: Optional[str] = None,
+    reason: Optional[str] = Query(None),
     current_user: User = Depends(require_directeur),
     db: Session = Depends(get_db),
 ):
-    """Director rejects a client contract request."""
     contract = get_contract_or_404(db, contract_id)
-    contract.status = ContractStatus.REJECTED
-    contract.notes = reason or contract.notes or "Demande refusée par la direction."
-    invalidate_exports(contract)
-    db.commit()
-    db.refresh(contract)
-    return get_contract_or_404(db, contract.id)
 
+    contract.status = ContractStatus.REJECTED
+    contract.notes = reason or "Demande refusée par la direction."
+
+    invalidate_exports(contract)
+
+    db.commit()
+
+    return {
+        "message": "Contrat refusé avec succès",
+        "contract_id": str(contract.id),
+        "status": "rejected",
+        "notes": contract.notes,
+    }
 
 @router.post("/{contract_id}/renew", response_model=ContractResponse, status_code=201)
 def renew_contract(
