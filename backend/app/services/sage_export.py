@@ -110,30 +110,100 @@ def invoice_label(invoice: Invoice) -> str:
 
 def build_invoice_sage_lines(invoice: Invoice, config: SageExportConfig | None = None) -> List[str]:
     config = config or SageExportConfig()
+
+    # ===== SECURE VALUES =====
+    total = float(invoice.total or 0)
+    subtotal = float(invoice.subtotal or 0)
+    tax_amount = float(invoice.tax_amount or 0)
+
+    if total <= 0:
+        return []
+
     date_piece = sage_date(invoice.issue_date)
     piece = sage_piece_number(invoice)
-    invoice_no = clean_sage_text(invoice.invoice_number, 30)
-    reference = invoice_reference(invoice)
-    tiers = invoice_tiers_code(invoice, config)
-    label = invoice_label(invoice)
+
+    invoice_no = clean_sage_text(
+        str(invoice.invoice_number or "FACTURE"),
+        30
+    )
+
+    reference = clean_sage_text(
+        str(invoice_reference(invoice) or ""),
+        30
+    )
+
+    tiers = clean_sage_text(
+        str(invoice_tiers_code(invoice, config) or "CLIENT"),
+        17
+    )
+
+    label = clean_sage_text(
+        str(invoice_label(invoice) or "VENTE"),
+        80
+    )
+
     due_date = sage_date(invoice.due_date)
-    debit_ttc = sage_amount(invoice.total)
-    credit_ht = sage_amount(invoice.subtotal)
-    credit_tva = sage_amount(invoice.tax_amount)
 
-    # Mapping canvas Sage VALIDÉ:
-    # 1 Code journal | 2 Date pièce JJMMAA | 3 N° pièce | 4 N° facture | 5 Référence
-    # 6 N° compte général | 7 N° compte tiers | 8 Libellé écriture | 9 Date échéance | 10 Débit | 11 Crédit
-    lines = [
-        [config.journal_code, date_piece, piece, invoice_no, reference, config.client_account, tiers, label, due_date, debit_ttc, ""],
-        [config.journal_code, date_piece, piece, invoice_no, reference, config.sales_account, "", label, "", "", credit_ht],
-    ]
-    if float(invoice.tax_amount or 0) != 0:
-        lines.append([config.journal_code, date_piece, piece, invoice_no, reference, config.vat_account, "", f"TVA 20 {label}"[:80], "", "", credit_tva])
+    debit_ttc = sage_amount(total)
+    credit_ht = sage_amount(subtotal)
+    credit_tva = sage_amount(tax_amount)
 
-    return [";".join(row) for row in lines]
+    lines = []
 
+    # CLIENT TTC
+    lines.append([
+        config.journal_code,
+        date_piece,
+        piece,
+        invoice_no,
+        reference,
+        config.client_account,
+        tiers,
+        label,
+        due_date,
+        debit_ttc,
+        ""
+    ])
 
+    # VENTE HT
+    lines.append([
+        config.journal_code,
+        date_piece,
+        piece,
+        invoice_no,
+        reference,
+        config.sales_account,
+        "",
+        label,
+        "",
+        "",
+        credit_ht
+    ])
+
+    # TVA
+    if tax_amount > 0:
+        lines.append([
+            config.journal_code,
+            date_piece,
+            piece,
+            invoice_no,
+            reference,
+            config.vat_account,
+            "",
+            f"TVA 20 {label}"[:80],
+            "",
+            "",
+            credit_tva
+        ])
+
+    # ===== CLEAN ROWS =====
+    clean_lines = []
+
+    for row in lines:
+        clean_row = [str(x or "") for x in row]
+        clean_lines.append(";".join(clean_row))
+
+    return clean_lines
 def validate_sage_invoice(invoice: Invoice) -> List[str]:
     errors: List[str] = []
     if not invoice.issue_date:
@@ -159,8 +229,12 @@ def build_sage_txt(invoices: Iterable[Invoice], config: SageExportConfig | None 
 
 def build_sage_bytes(invoices: Iterable[Invoice], config: SageExportConfig | None = None) -> bytes:
     config = config or SageExportConfig()
-    return build_sage_txt(invoices, config).encode(config.encoding, errors="replace")
+    txt = build_sage_txt(invoices, config)
 
+    if not txt.strip():
+        txt = "VIDE;VIDE;VIDE\r\n"
+
+    return txt.encode(config.encoding, errors="replace")
 
 def build_sage_zip_by_period(invoices: Iterable[Invoice], config: SageExportConfig | None = None) -> bytes:
     config = config or SageExportConfig()
