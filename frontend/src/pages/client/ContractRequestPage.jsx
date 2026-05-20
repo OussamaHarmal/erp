@@ -5,7 +5,7 @@ import { Building2, CheckCircle2, FileText, Send, UserRound, Lock, AlertCircle }
 import { useAuth } from '../../context/AuthContext';
 
 const MONTHLY_PRICE = 65;
-const DURATIONS = [1, 3, 6];
+const DURATIONS = [1, 3, 6 , 9 , 12];
 
 const addMonths = (dateStr, months) => {
   if (!dateStr) return '';
@@ -233,16 +233,6 @@ export default function ContractRequestPage() {
               />
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Date fin</label>
-              <input
-                type="date"
-                className="form-input"
-                value={form.end_date || calculatedEndDate}
-                onChange={e => updateField('end_date', e.target.value)}
-                required
-              />
-            </div>
 
             <div className="form-group">
               <label className="form-label">Montant total</label>
