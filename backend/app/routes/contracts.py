@@ -37,8 +37,6 @@ DURATION_PRICES = {
     1: 65.0,
     3: 195.0,
     6: 390.0,
-    9: 585.0,
-    12: 780.0,
 }
 RENEWAL_MONTHLY_PRICE = 165.0
 
