@@ -170,29 +170,29 @@ export default function DirectorContractsPage() {
     const reason = window.prompt("Motif du refus ?");
     if (!reason) return;
 
+    setActionLoading(`reject-${contractId}`);
+
     try {
       await contractsAPI.reject(contractId, reason);
 
       setContracts(prev =>
         prev.map(contract =>
           contract.id === contractId
-            ? {
-                ...contract,
-                status: 'rejected'
-              }
+            ? { ...contract, status: "rejected" }
             : contract
         )
       );
 
       if (selected?.id === contractId) {
-        setSelected({
-          ...selected,
-          status: 'rejected'
-        });
+        setSelected({ ...selected, status: "rejected" });
       }
 
     } catch (err) {
-      alert(err.response?.data?.detail || "Erreur lors du refus");
+      const msg = await extractErrorMessage(err);
+      setError(msg);
+      alert(msg);
+    } finally {
+      setActionLoading("");
     }
   };
 
