@@ -428,10 +428,36 @@ def sage_export_history(
     ]
 @router.post("/sage/prepare-export")
 def prepare_sage_export(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    only_not_exported: bool = True,
+    current_user: User = Depends(require_directeur),
     db: Session = Depends(get_db)
-):
-    # هنا دير generation ديال TXT
-    txt_content = "TEST SAGE EXPORT"
+    ):
+    invoices = invoice_query(
+        db,
+        start_date=start_date,
+        end_date=end_date,
+        only_not_exported=only_not_exported,
+    ).all()
+
+    errors = collect_sage_errors(invoices)
+
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Validation Sage échouée",
+                "errors": errors
+            }
+        )
+
+    content_bytes = build_sage_bytes(
+        invoices,
+        sage_config()
+    )
+
+    txt_content = content_bytes.decode("cp1252")
 
     filename = f"SAGE_EXPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
@@ -442,15 +468,20 @@ def prepare_sage_export(
     )
 
     db.add(job)
+
+    for inv in invoices:
+        inv.exported_to_sage = True
+        inv.sage_exported_at = datetime.utcnow()
+
     db.commit()
     db.refresh(job)
 
     return {
         "message": "Export Sage préparé",
         "filename": filename,
-        "job_id": job.id
+        "job_id": job.id,
+        "invoice_count": len(invoices)
     }
-    
 @router.get("/sage/agent/pending")
 def get_pending_exports(
     db: Session = Depends(get_db)
