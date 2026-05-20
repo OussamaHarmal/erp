@@ -97,21 +97,6 @@ export default function LoginPage() {
               </Link>
             </p>
           </div>
-
-          {/* Demo credentials */}
-          <div style={styles.demo}>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, textAlign: 'center' }}>Comptes de démonstration</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary btn-sm" style={{ flex: 1, fontSize: 11, justifyContent: 'center' }}
-                onClick={() => setForm({ email: 'admin@smartcms.ma', password: 'Admin@2024!' })}>
-                🧑‍💼 Directeur
-              </button>
-              <button className="btn btn-secondary btn-sm" style={{ flex: 1, fontSize: 11, justifyContent: 'center' }}
-                onClick={() => setForm({ email: 'client@test.ma', password: 'Client@2024!' })}>
-                👤 Client
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
