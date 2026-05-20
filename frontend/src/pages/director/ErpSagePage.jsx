@@ -80,6 +80,21 @@ export default function ErpSagePage() {
     catch (err) { setError(JSON.stringify(err.response?.data?.detail || 'Erreur préparation dossier Sage')); }
     finally { setBusy(''); }
   };
+  const handlePrepareSageExport = async () => {
+    try {
+      setBusy('sage');
+      setFolderResult(null);
+
+      const { data } = await erpAPI.prepareSageExport();
+
+      setFolderResult(data);
+    } catch (error) {
+      console.error(error);
+      alert("Erreur lors de la préparation de l'export Sage");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   if (loading) return <div className="grid-3">{Array.from({ length: 6 }).map((_, i) => <div className="skeleton-card" key={i} />)}</div>;
 
@@ -118,19 +133,55 @@ export default function ErpSagePage() {
           </div>
         </div>
 
-        <div className="card glass-card">
-          <div className="section-heading"><h3>Exports</h3><span>TXT Sage / Excel / ZIP / dossier</span></div>
-          <div className="action-grid">
-            <button className="btn btn-primary btn-glow" onClick={handleExportTxt} disabled={!!busy}><FileText size={16} /> {busy === 'txt' ? 'Export...' : 'Exporter TXT vers C:\\SAGE_AUTO_IMPORT\\pending'}</button>
-            <button className="btn btn-success modern-btn" onClick={handleExportExcel} disabled={!!busy}><FileSpreadsheet size={16} /> {busy === 'excel' ? 'Export...' : 'Exporter Excel canvas'}</button>
-            <button className="btn btn-secondary" onClick={handleExportZip} disabled={!!busy}><Package size={16} /> {busy === 'zip' ? 'Export...' : 'Exporter ZIP par période'}</button>
-            <button className="btn btn-secondary" onClick={handleExportToFolder} disabled={!!busy}><FolderInput size={16} /> {busy === 'folder' ? 'Préparation...' : 'Préparer dans dossier Sage'}</button>
+       <div className="card glass-card">
+        <div className="section-heading">
+          <h3>Exports</h3>
+          <span>Préparation Sage / Excel / ZIP</span>
+        </div>
+
+        <div className="action-grid">
+          <button
+            className="btn btn-primary btn-glow"
+            onClick={handlePrepareSageExport}
+            disabled={!!busy}
+          >
+            <FileText size={16} />
+            {busy === 'sage' ? 'Préparation...' : 'Préparer export Sage'}
+          </button>
+
+          <button
+            className="btn btn-success modern-btn"
+            onClick={handleExportExcel}
+            disabled={!!busy}
+          >
+            <FileSpreadsheet size={16} />
+            {busy === 'excel' ? 'Export...' : 'Exporter Excel canvas'}
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            onClick={handleExportZip}
+            disabled={!!busy}
+          >
+            <Package size={16} />
+            {busy === 'zip' ? 'Export...' : 'Exporter ZIP par période'}
+          </button>
+        </div>
+
+        {folderResult && (
+          <div className="alert alert-success" style={{ marginTop: 14, fontSize: 13 }}>
+            Export Sage préparé avec succès.
+            <br />
+            <code>{folderResult.filename || folderResult.message}</code>
           </div>
-          {folderResult && <div className="alert alert-success" style={{ marginTop: 14, fontSize: 13 }}>Fichier préparé : <code>{folderResult.path}</code></div>}
-          <div className="sage-note">Import Sage : <strong>Fichier → Importer → Format paramétrable</strong>, choisir ton modèle <code>.MAE</code>, puis le TXT généré.</div>
+        )}
+
+        <div className="sage-note">
+          L’export Sage est préparé côté serveur. Le service local installé sur le PC du patron
+          va récupérer automatiquement le fichier TXT et l’envoyer vers Sage.
         </div>
       </div>
-
+      </div>  
       <div className="card glass-card" style={{ marginTop: 20 }}>
         <div className="section-heading"><h3>Mapping .MAE</h3><span>ordre exact des colonnes</span></div>
         <div className="mapping-grid">

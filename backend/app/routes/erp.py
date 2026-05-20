@@ -4,11 +4,13 @@ import os
 import uuid
 from typing import Optional
 from datetime import datetime, time
-
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models import SageExportJob
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-
+from fastapi.responses import Response
 from ..database import get_db
 from ..models import (
     Invoice,
@@ -424,3 +426,72 @@ def sage_export_history(
         }
         for r in rows
     ]
+@router.post("/sage/prepare-export")
+def prepare_sage_export(
+    db: Session = Depends(get_db)
+):
+    # هنا دير generation ديال TXT
+    txt_content = "TEST SAGE EXPORT"
+
+    filename = f"SAGE_EXPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
+    job = SageExportJob(
+        filename=filename,
+        content=txt_content,
+        status="pending"
+    )
+
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    return {
+        "message": "Export Sage préparé",
+        "filename": filename,
+        "job_id": job.id
+    }
+    
+@router.get("/sage/agent/pending")
+def get_pending_exports(
+    db: Session = Depends(get_db)
+):
+    jobs = db.query(SageExportJob).filter(
+        SageExportJob.status == "pending"
+    ).all()
+
+    return [
+        {
+            "id": j.id,
+            "filename": j.filename
+        }
+        for j in jobs
+    ]
+
+@router.get("/sage/agent/download/{job_id}")
+def download_export(
+    job_id: int,
+    db: Session = Depends(get_db)
+    ):
+    job = db.query(SageExportJob).filter(
+        SageExportJob.id == job_id
+    ).first()
+
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="Export introuvable"
+        )
+
+    job.status = "downloaded"
+    job.downloaded_at = datetime.utcnow()
+
+    db.commit()
+
+    return Response(
+        content=job.content,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition":
+            f"attachment; filename={job.filename}"
+        }
+    )

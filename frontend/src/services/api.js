@@ -148,18 +148,43 @@ export const documentsAPI = {
   delete: (id) => api.delete(`/documents/${id}`),
 };
 
-// ── Analytics API ─────────────────────────────────────────────────────────
-export const erpAPI = {
-  sageMapping: () => api.get("/erp/sage/mapping"),
-  sagePreview: (params) => api.get("/erp/sage/preview", { params }),
-  exportSageTxt: (params) => api.get("/erp/sage/export/txt", { params, responseType: "blob" }),
-  exportSageZip: (params) => api.get("/erp/sage/export/zip", { params, responseType: "blob" }),
-  exportSageExcel: (params) => api.get("/erp/sage/export/excel", { params, responseType: "blob" }),
-  exportSageToFolder: (params) => api.post("/erp/sage/export/drop-folder", null, { params }),
-  sageHistory: () => api.get("/erp/sage/history"),
-  exportInvoiceSageTxt: (id) => api.get(`/erp/sage/invoices/${id}/txt`, { responseType: "blob" }),
-};
+// ── ERP / Sage API ───────────────────────────────────────────────────────
+  export const erpAPI = {
+    sageMapping: () => api.get("/erp/sage/mapping"),
 
+    sagePreview: (params) =>
+      api.get("/erp/sage/preview", { params }),
+
+    exportSageTxt: (params) =>
+      api.get("/erp/sage/export/txt", {
+        params,
+        responseType: "blob"
+      }),
+
+    exportSageZip: (params) =>
+      api.get("/erp/sage/export/zip", {
+        params,
+        responseType: "blob"
+      }),
+
+    exportSageExcel: (params) =>
+      api.get("/erp/sage/export/excel", {
+        params,
+        responseType: "blob"
+      }),
+
+    // NEW ✅
+    prepareSageExport: (params) =>
+      api.post("/erp/sage/prepare-export", null, { params }),
+
+    sageHistory: () =>
+      api.get("/erp/sage/history"),
+
+    exportInvoiceSageTxt: (id) =>
+      api.get(`/erp/sage/invoices/${id}/txt`, {
+        responseType: "blob"
+      }),
+  };
 export const chatbotAPI = {
   ask: (message, history = []) => api.post('/chatbot/ask', { message, history }),
 };
