@@ -411,8 +411,13 @@ export default function DirectorContractsPage() {
                         <button className="btn btn-primary btn-sm" disabled={actionLoading === `approve-${c.id}`} onClick={() => approve(c)}><CheckCircle size={14} /> Approuver</button>
                       )}
                       {!['approved', 'active'].includes(c.status) && (
-                        <button className="btn btn-danger btn-sm" disabled={actionLoading === `reject-${c.id}`} onClick={() => handleReject(c)}><XCircle size={14} /> Refuser</button>
-                      )}
+                        <button
+                          className="btn btn-danger btn-sm"
+                          disabled={actionLoading === `reject-${c.id}`}
+                          onClick={() => handleReject(c.id)}
+                        >
+                          <XCircle size={14} /> Refuser
+                        </button>                      )}
                       <button className="btn btn-secondary btn-sm" onClick={() => startEdit(c)}><Edit size={14} /> Modifier</button>
                       <button className="btn btn-secondary btn-sm" disabled={actionLoading === `pdf-${c.id}`} onClick={() => handleDownload(c, 'pdf')}><Download size={14} /> PDF</button>
                       <button className="btn btn-secondary btn-sm" disabled={actionLoading === `word-${c.id}`} onClick={() => handleDownload(c, 'word')}><Download size={14} /> Word</button>
