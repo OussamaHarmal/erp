@@ -146,28 +146,98 @@ export default function ContractRequestPage() {
           <Input label="Adresse société" value={form.company_address} onChange={v => updateField('company_address', v)} />
 
           <SectionTitle icon={<FileText size={18} />} title="Contrat & durée" />
-          <div style={styles.twoCols}>
-            <div className="form-group">
-              <label className="form-label">Type de contrat</label>
-              <select className="form-input" value={form.contract_type} onChange={e => updateField('contract_type', e.target.value)} required>
-                <option value="Domiciliation Juridique">Domiciliation Juridique</option>
-                <option value="Centre d’Affaires">Centre d’Affaires</option>
-                <option value="Conseil Juridique – Fiscal et Comptable">Conseil Juridique – Fiscal et Comptable</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Date début</label>
-              <input type="date" className="form-input" value={form.start_date} onChange={e => updateField('start_date', e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Durée</label>
-              <select className="form-input" value={form.duration_months} onChange={e => updateField('duration_months', e.target.value)} required>
-                <option value="1">1 mois — 100 MAD</option>
-                <option value="3">3 mois — 250 MAD</option>
-                <option value="6">6 mois — 500 MAD</option>
-              </select>
-            </div>
-          </div>
+
+<div style={styles.twoCols}>
+  <div className="form-group">
+    <label className="form-label">Type de contrat</label>
+    <select
+      className="form-input"
+      value={form.contract_type}
+      onChange={e => updateField('contract_type', e.target.value)}
+      required
+    >
+      <option value="Domiciliation Juridique">Domiciliation Juridique</option>
+      <option value="Centre d’Affaires">Centre d’Affaires</option>
+      <option value="Conseil Juridique – Fiscal et Comptable">
+        Conseil Juridique – Fiscal et Comptable
+      </option>
+    </select>
+  </div>
+
+  <div className="form-group">
+    <label className="form-label">Durée</label>
+    <select
+      className="form-input"
+      value={form.duration_months}
+      onChange={e => {
+        const months = Number(e.target.value);
+        updateField('duration_months', months);
+
+        if (form.start_date) {
+          const start = new Date(form.start_date);
+          const end = new Date(start);
+          end.setMonth(end.getMonth() + months);
+
+          updateField('end_date', end.toISOString().split('T')[0]);
+          updateField('amount', months * 65);
+        } else {
+          updateField('amount', months * 65);
+        }
+      }}
+      required
+    >
+      <option value="1">1 mois — 65 MAD</option>
+      <option value="3">3 mois — 195 MAD</option>
+      <option value="6">6 mois — 390 MAD</option>
+    </select>
+    </div>
+
+    <div className="form-group">
+      <label className="form-label">Date début</label>
+      <input
+        type="date"
+        className="form-input"
+        value={form.start_date}
+        onChange={e => {
+          const startDate = e.target.value;
+          const months = Number(form.duration_months || 1);
+
+          updateField('start_date', startDate);
+
+          if (startDate) {
+            const start = new Date(startDate);
+            const end = new Date(start);
+            end.setMonth(end.getMonth() + months);
+
+            updateField('end_date', end.toISOString().split('T')[0]);
+            updateField('amount', months * 65);
+          }
+        }}
+        required
+      />
+    </div>
+
+    <div className="form-group">
+      <label className="form-label">Date fin</label>
+      <input
+        type="date"
+        className="form-input"
+        value={form.end_date}
+        onChange={e => updateField('end_date', e.target.value)}
+        required
+      />
+    </div>
+
+    <div className="form-group">
+      <label className="form-label">Montant total</label>
+      <input
+        type="text"
+        className="form-input"
+        value={`${Number(form.duration_months || 1) * 65} MAD`}
+        readOnly
+      />
+    </div>
+  </div>
 
           <div style={styles.priceBox}>
             <span>Prix automatique</span>
@@ -189,7 +259,7 @@ export default function ContractRequestPage() {
           <p style={styles.muted}>Partie fixe</p>
           <div style={styles.fixedBox}>
             <strong>UNIVERSAL INVEST STRATEGY SARL AU</strong><br />
-            Directeur : YOUSSEF BACHRI<br />
+            Directeur : YOUSSEF BACHRA<br />
             Adresse : Angle Rue Al AARAR et Av Lalla El Yacout 3ème, imm1 Appartement 8<br />
             Tél : +212600800747<br />
             Email : contact@ui-strategy.com<br />
