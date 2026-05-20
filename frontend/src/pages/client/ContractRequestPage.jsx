@@ -5,7 +5,7 @@ import { Building2, CheckCircle2, FileText, Send, UserRound, Lock, AlertCircle }
 import { useAuth } from '../../context/AuthContext';
 
 const MONTHLY_PRICE = 65;
-const DURATIONS = [1, 3, 6 ];
+const DURATIONS = [1, 3, 6];
 
 const addMonths = (dateStr, months) => {
   if (!dateStr) return '';

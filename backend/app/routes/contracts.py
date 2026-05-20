@@ -13,7 +13,16 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import ClientProfile, Contract, ContractStatus, User, UserRole, Invoice, InvoiceItem , InvoiceStatus
+from ..models import (
+    ClientProfile,
+    Contract,
+    ContractStatus,
+    User,
+    UserRole,
+    Invoice,
+    InvoiceItem,
+    InvoiceStatus
+)
 from ..schemas.schemas import (
     ContractCreate,
     ContractRequestCreate,
@@ -500,7 +509,7 @@ def approve_contract(
         subtotal=amount_ht,
         tax_amount=tax,
         total=total,
-        status=InvoiceStatus.UNPAID,
+        status=InvoiceStatus.PENDING,
     )
 
     db.add(invoice)
