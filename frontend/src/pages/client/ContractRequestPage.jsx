@@ -4,7 +4,7 @@ import { contractsAPI, clientsAPI } from '../../services/api';
 import { Building2, CheckCircle2, FileText, Send, UserRound, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const DURATION_PRICES = { 1: 100, 3: 250, 6: 500 };
+const DURATION_PRICES = { 1: 65, 3: 130, 6: 390 };
 
 const emptyForm = {
   contract_type: 'Domiciliation Juridique',
