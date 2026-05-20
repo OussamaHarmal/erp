@@ -137,9 +137,33 @@ export default function DirectorContractsPage() {
 
   const approve = async (c) => {
     setActionLoading(`approve-${c.id}`);
-    try { await contractsAPI.approve(c.id); load(); }
-    catch (err) { setError(await extractErrorMessage(err)); }
-    finally { setActionLoading(''); }
+
+    try {
+      await contractsAPI.approve(c.id);
+
+      setContracts(prev =>
+        prev.map(contract =>
+          contract.id === c.id
+            ? {
+                ...contract,
+                status: 'approved'
+              }
+            : contract
+        )
+      );
+
+      if (selected?.id === c.id) {
+        setSelected({
+          ...selected,
+          status: 'approved'
+        });
+      }
+
+    } catch (err) {
+      setError(await extractErrorMessage(err));
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const handleReject = async (contractId) => {
@@ -148,7 +172,25 @@ export default function DirectorContractsPage() {
 
     try {
       await contractsAPI.reject(contractId, reason);
-      await loadContracts();
+
+      setContracts(prev =>
+        prev.map(contract =>
+          contract.id === contractId
+            ? {
+                ...contract,
+                status: 'rejected'
+              }
+            : contract
+        )
+      );
+
+      if (selected?.id === contractId) {
+        setSelected({
+          ...selected,
+          status: 'rejected'
+        });
+      }
+
     } catch (err) {
       alert(err.response?.data?.detail || "Erreur lors du refus");
     }
@@ -195,20 +237,40 @@ export default function DirectorContractsPage() {
 
   const saveEdit = async () => {
     if (!selected) return;
+
     setActionLoading(`save-${selected.id}`);
+
     try {
-      await contractsAPI.update(selected.id, {
+      const payload = {
         ...editForm,
         duration_months: Number(editForm.duration_months),
         price: Number(editForm.price),
         value: Number(editForm.price),
-      });
+      };
+
+      await contractsAPI.update(selected.id, payload);
+
+      const updatedContract = {
+        ...selected,
+        ...payload,
+      };
+
+      setContracts(prev =>
+        prev.map(contract =>
+          contract.id === selected.id
+            ? updatedContract
+            : contract
+        )
+      );
+
+      setSelected(updatedContract);
       setEditing(null);
-      setSelected(null);
-      load();
+
     } catch (err) {
       setError(await extractErrorMessage(err));
-    } finally { setActionLoading(''); }
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const sendRenewalInvitation = async (contract) => {

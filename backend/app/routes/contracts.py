@@ -7,8 +7,8 @@ import uuid
 from calendar import monthrange
 from datetime import datetime, timedelta
 from typing import List, Optional
-
-from fastapi import APIRouter, Depends, HTTPException, Query
+from ..database import get_db, SessionLocal
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
@@ -303,24 +303,6 @@ def request_contract(
         .first()
     )
 
-    # Generate contract + invoice immediately, then send them by email when SMTP is configured.
-    try:
-        pdf_path = generate_contract_pdf(final_contract)
-        word_path = generate_contract_word(final_contract)
-        final_contract.pdf_path = pdf_path
-        final_contract.word_path = word_path
-        invoice_pdf_path = generate_invoice_pdf(final_invoice) if final_invoice else None
-        db.commit()
-        recipient = profile.company_email or current_user.email
-        send_contract_invoice_email(
-            recipient,
-            final_contract,
-            final_invoice,
-            [p for p in [pdf_path, word_path, invoice_pdf_path] if p],
-        )
-    except Exception as exc:
-        final_contract.notes = (final_contract.notes or "") + f"\nEmail/export automatique non envoyé: {exc}"
-        db.commit()
 
     return get_contract_or_404(db, final_contract.id)
 
@@ -478,10 +460,66 @@ def update_contract(
     db.refresh(contract)
     return get_contract_or_404(db, contract.id)
 
+def send_approved_contract_email_task(contract_id: uuid.UUID, invoice_id: uuid.UUID):
+    db = SessionLocal()
+    try:
+        contract = (
+            db.query(Contract)
+            .options(joinedload(Contract.client).joinedload(User.profile))
+            .filter(Contract.id == contract_id)
+            .first()
+        )
+
+        invoice = (
+            db.query(Invoice)
+            .options(joinedload(Invoice.client).joinedload(User.profile), joinedload(Invoice.items))
+            .filter(Invoice.id == invoice_id)
+            .first()
+        )
+
+        if not contract or not invoice:
+            return
+
+        profile = contract.client.profile if contract.client and contract.client.profile else None
+        recipient = (
+            getattr(profile, "company_email", None)
+            or getattr(contract.client, "email", None)
+        )
+
+        if not recipient:
+            contract.notes = (contract.notes or "") + "\nEmail non envoyé: client sans email."
+            db.commit()
+            return
+
+        pdf_path = generate_contract_pdf(contract)
+        word_path = generate_contract_word(contract)
+        invoice_pdf_path = generate_invoice_pdf(invoice)
+
+        contract.pdf_path = pdf_path
+        contract.word_path = word_path
+        db.commit()
+
+        send_contract_invoice_email(
+            recipient,
+            contract,
+            invoice,
+            [p for p in [pdf_path, word_path, invoice_pdf_path] if p],
+        )
+
+    except Exception as e:
+        try:
+            contract.notes = (contract.notes or "") + f"\nErreur email automatique après approbation: {e}"
+            db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
 
 @router.patch("/{contract_id}/approve")
 def approve_contract(
     contract_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_directeur),
     db: Session = Depends(get_db)
 ):
@@ -496,7 +534,7 @@ def approve_contract(
 
     # prix = durée × 65
     duration = contract.duration_months or 1
-    amount_ht = duration * 65
+    amount_ht = duration * 67
     tax = amount_ht * 0.20
     total = amount_ht + tax
 
@@ -527,45 +565,14 @@ def approve_contract(
     db.commit()
     db.refresh(invoice)
 
-    # envoi email automatique
-    # génération PDF + email automatique
-    try:
-        profile = contract.client.profile if contract.client and contract.client.profile else None
-
-        recipient = (
-            getattr(profile, "company_email", None)
-            or getattr(contract.client, "email", None)
-        )
-
-        if recipient:
-
-            pdf_path = generate_contract_pdf(contract)
-            word_path = generate_contract_word(contract)
-            invoice_pdf_path = generate_invoice_pdf(invoice)
-
-            contract.pdf_path = pdf_path
-            contract.word_path = word_path
-
-            db.commit()
-
-            send_contract_invoice_email(
-                recipient,
-                contract,
-                invoice,
-                [
-                    p for p in [
-                        pdf_path,
-                        word_path,
-                        invoice_pdf_path
-                    ] if p
-                ]
-            )
-
-    except Exception as e:
-        print("Email sending error:", str(e))
+    background_tasks.add_task(
+        send_approved_contract_email_task,
+        contract.id,
+        invoice.id
+    )
 
     return {
-        "message": "Contrat approuvé, facture créée et email envoyé",
+        "message": "Contrat approuvé, facture créée. Email en cours d’envoi automatiquement.",
         "contract_id": str(contract.id),
         "invoice_id": str(invoice.id),
     }

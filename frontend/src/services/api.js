@@ -119,7 +119,7 @@ export const contractsAPI = {
   sendRenewalInvitation: (id) => api.post(`/contracts/${id}/send-renewal-invitation`),
   update: (id, data) => api.put(`/contracts/${id}`, data),
   approve: (id) => api.patch(`/contracts/${id}/approve`),
-  reject: (id, reason) => api.patch(`/contracts/${id}/reject`, null, { params: { reason } }),
+reject: (id, reason) =>api.patch(`/contracts/${id}/reject`, null, { params: { reason } }),
   renew: (id, data) => api.post(`/contracts/${id}/renew`, data),
   delete: (id) => api.delete(`/contracts/${id}`),
 };
