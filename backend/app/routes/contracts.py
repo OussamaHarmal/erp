@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import ClientProfile, Contract, ContractStatus, User, UserRole, Invoice, InvoiceItem
+from ..models import ClientProfile, Contract, ContractStatus, User, UserRole, Invoice, InvoiceItem , InvoiceStatus
 from ..schemas.schemas import (
     ContractCreate,
     ContractRequestCreate,
@@ -470,23 +470,96 @@ def update_contract(
     return get_contract_or_404(db, contract.id)
 
 
-@router.patch("/{contract_id}/approve", response_model=ContractResponse)
+@router.patch("/{contract_id}/approve")
 def approve_contract(
     contract_id: uuid.UUID,
     current_user: User = Depends(require_directeur),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db)
 ):
-    """Director approves a client contract request."""
-    contract = get_contract_or_404(db, contract_id)
-    contract.status = ContractStatus.APPROVED
-    contract.approved_by = current_user.id
-    contract.approved_at = datetime.utcnow()
-    contract.terms = "Contrat approuvé par la direction. Le client peut télécharger le contrat final."
-    invalidate_exports(contract)
-    db.commit()
-    db.refresh(contract)
-    return get_contract_or_404(db, contract.id)
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
 
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contrat introuvable")
+
+    contract.status = ContractStatus.APPROVED
+    contract.approved_at = datetime.utcnow()
+    contract.approved_by = current_user.id
+
+    # prix = durée × 65
+    duration = contract.duration_months or 1
+    amount_ht = duration * 65
+    tax = amount_ht * 0.20
+    total = amount_ht + tax
+
+    invoice = Invoice(
+        client_id=contract.client_id,
+        contract_id=contract.id,
+        invoice_number=f"FAC-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        issue_date=datetime.utcnow(),
+        due_date=contract.start_date,
+        subtotal=amount_ht,
+        tax_amount=tax,
+        total=total,
+        status=InvoiceStatus.UNPAID,
+    )
+
+    db.add(invoice)
+    db.flush()
+
+    invoice_item = InvoiceItem(
+        invoice_id=invoice.id,
+        description=f"Contrat {contract.contract_number} - {duration} mois",
+        quantity=duration,
+        unit_price=65,
+        total=amount_ht,
+    )
+
+    db.add(invoice_item)
+    db.commit()
+    db.refresh(invoice)
+
+    # envoi email automatique
+    # génération PDF + email automatique
+    try:
+        profile = contract.client.profile if contract.client and contract.client.profile else None
+
+        recipient = (
+            getattr(profile, "company_email", None)
+            or getattr(contract.client, "email", None)
+        )
+
+        if recipient:
+
+            pdf_path = generate_contract_pdf(contract)
+            word_path = generate_contract_word(contract)
+            invoice_pdf_path = generate_invoice_pdf(invoice)
+
+            contract.pdf_path = pdf_path
+            contract.word_path = word_path
+
+            db.commit()
+
+            send_contract_invoice_email(
+                recipient,
+                contract,
+                invoice,
+                [
+                    p for p in [
+                        pdf_path,
+                        word_path,
+                        invoice_pdf_path
+                    ] if p
+                ]
+            )
+
+    except Exception as e:
+        print("Email sending error:", str(e))
+
+    return {
+        "message": "Contrat approuvé, facture créée et email envoyé",
+        "contract_id": str(contract.id),
+        "invoice_id": str(invoice.id),
+    }
 
 @router.patch("/{contract_id}/reject", response_model=ContractResponse)
 def reject_contract(

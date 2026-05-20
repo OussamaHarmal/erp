@@ -4,7 +4,7 @@ import { contractsAPI, clientsAPI } from '../../services/api';
 import { Building2, CheckCircle2, FileText, Send, UserRound, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const DURATION_PRICES = { 1: 65, 3: 130, 6: 390 };
+const DURATION_PRICES = { 1: 65, 3: 195, 6: 390 };
 
 const emptyForm = {
   contract_type: 'Domiciliation Juridique',
@@ -164,34 +164,7 @@ export default function ContractRequestPage() {
     </select>
   </div>
 
-  <div className="form-group">
-    <label className="form-label">Durée</label>
-    <select
-      className="form-input"
-      value={form.duration_months}
-      onChange={e => {
-        const months = Number(e.target.value);
-        updateField('duration_months', months);
-
-        if (form.start_date) {
-          const start = new Date(form.start_date);
-          const end = new Date(start);
-          end.setMonth(end.getMonth() + months);
-
-          updateField('end_date', end.toISOString().split('T')[0]);
-          updateField('amount', months * 65);
-        } else {
-          updateField('amount', months * 65);
-        }
-      }}
-      required
-    >
-      <option value="1">1 mois — 65 MAD</option>
-      <option value="3">3 mois — 195 MAD</option>
-      <option value="6">6 mois — 390 MAD</option>
-    </select>
-    </div>
-
+  
     <div className="form-group">
       <label className="form-label">Date début</label>
       <input
