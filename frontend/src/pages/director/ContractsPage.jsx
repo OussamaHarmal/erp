@@ -142,12 +142,16 @@ export default function DirectorContractsPage() {
     finally { setActionLoading(''); }
   };
 
-  const reject = async (c) => {
-    const reason = prompt('Motif du refus ?') || 'Demande refusée';
-    setActionLoading(`reject-${c.id}`);
-    try { await contractsAPI.reject(c.id, reason); load(); }
-    catch (err) { setError(await extractErrorMessage(err)); }
-    finally { setActionLoading(''); }
+  const handleReject = async (contractId) => {
+    const reason = window.prompt("Motif du refus ?");
+    if (!reason) return;
+
+    try {
+      await contractsAPI.reject(contractId, reason);
+      await loadContracts();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Erreur lors du refus");
+    }
   };
 
   const startEdit = (c) => {
