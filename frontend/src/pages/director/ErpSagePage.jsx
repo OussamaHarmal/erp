@@ -83,14 +83,20 @@ export default function ErpSagePage() {
   const handlePrepareSageExport = async () => {
     try {
       setBusy('sage');
+      setError('');
       setFolderResult(null);
 
-      const { data } = await erpAPI.prepareSageExport();
+      const { data } = await erpAPI.prepareSageExport(params);
 
       setFolderResult(data);
-    } catch (error) {
-      console.error(error);
-      alert("Erreur lors de la préparation de l'export Sage");
+      await load();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (detail && typeof detail === 'object' && detail.errors) {
+        setError(`Validation Sage échouée : ${detail.errors.join(' | ')}`);
+      } else {
+        setError(typeof detail === 'string' ? detail : "Erreur lors de la préparation de l'export Sage");
+      }
     } finally {
       setBusy(null);
     }

@@ -44,10 +44,10 @@ router = APIRouter(prefix="/contracts", tags=["Contracts"])
 
 DURATION_PRICES = {
     1: 67.0,
-    3: 195.0,
-    6: 390.0,
+    3: 201.0,
+    6: 402.0,
 }
-RENEWAL_MONTHLY_PRICE = 167.0
+RENEWAL_MONTHLY_PRICE = 165.0
 
 PROFILE_FIELDS = {
     "first_name", "last_name", "cin_number", "birth_date", "address", "phone", "city",
@@ -610,7 +610,7 @@ def renew_contract(
     """
     Client-only renewal request.
     Director/admin cannot create renewals directly; they approve/reject the generated PENDING renewal.
-    Renewal price is fixed at 167 MAD/month.
+    Renewal price is fixed at 165 MAD/month.
     """
     old_contract = get_contract_or_404(db, contract_id)
     check_resource_access(old_contract.client_id, current_user)
