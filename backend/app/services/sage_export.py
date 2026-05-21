@@ -224,8 +224,10 @@ def build_sage_txt(invoices: Iterable[Invoice], config: SageExportConfig | None 
     lines: List[str] = []
     for invoice in invoices:
         lines.extend(build_invoice_sage_lines(invoice, config))
-    return config.line_ending.join(lines) + config.line_ending
+    if not lines:
+        raise Exception("Aucune ligne Sage générée")
 
+    return config.line_ending.join(lines) + config.line_ending
 
 def build_sage_bytes(invoices: Iterable[Invoice], config: SageExportConfig | None = None) -> bytes:
     config = config or SageExportConfig()

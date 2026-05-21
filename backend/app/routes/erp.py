@@ -49,29 +49,60 @@ def invoice_query(
     invoice_id: Optional[uuid.UUID] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    paid_only: bool = True,
+    paid_only: bool = False,
     only_not_exported: bool = False,
 ):
     q = (
         db.query(Invoice)
-        .options(joinedload(Invoice.client).joinedload(User.profile), joinedload(Invoice.contract), joinedload(Invoice.items))
-        .order_by(Invoice.issue_date.asc(), Invoice.invoice_number.asc())
+        .options(
+            joinedload(Invoice.client).joinedload(User.profile),
+            joinedload(Invoice.contract),
+            joinedload(Invoice.items),
+        )
+        .filter(
+            Invoice.total.isnot(None),
+            Invoice.total > 0,
+        )
+        .order_by(
+            Invoice.issue_date.asc(),
+            Invoice.invoice_number.asc()
+        )
     )
+
     if invoice_id:
         return q.filter(Invoice.id == invoice_id)
+
+    # IMPORTANT:
+    # Ne pas limiter seulement aux factures PAID
     if paid_only:
-        q = q.filter(Invoice.status == InvoiceStatus.PAID)
+        q = q.filter(
+            Invoice.status.in_([
+                InvoiceStatus.PAID,
+                InvoiceStatus.PENDING,
+            ])
+        )
+
     if only_not_exported:
-        q = q.filter(Invoice.exported_to_sage == False)  # noqa: E712
+        q = q.filter(
+            Invoice.exported_to_sage == False
+        )
+
     start_dt = parse_date(start_date)
     end_dt = parse_date(end_date)
+
     if start_dt:
         q = q.filter(Invoice.issue_date >= start_dt)
+
     if end_dt:
-        q = q.filter(Invoice.issue_date <= end_dt.replace(hour=23, minute=59, second=59))
+        q = q.filter(
+            Invoice.issue_date <= end_dt.replace(
+                hour=23,
+                minute=59,
+                second=59
+            )
+        )
+
     return q
-
-
 def parse_date(value: Optional[str]):
     if not value:
         return None
@@ -171,7 +202,10 @@ def export_sage_txt(
             joinedload(Invoice.items),
             joinedload(Invoice.client),
         )
-        .filter(Invoice.status == InvoiceStatus.PENDING)
+        .filter(
+            Invoice.total.isnot(None),
+            Invoice.total > 0,
+        )
         .all()
     )
 
@@ -181,21 +215,19 @@ def export_sage_txt(
             detail="Aucune facture trouvée."
         )
 
-    filename = f"SAGE_VENTES_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
+    content = build_sage_bytes(
+        invoices,
+        sage_config()
+    )
 
-    content = build_sage_bytes(invoices, sage_config())
-
-    if not content.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Export Sage vide."
-        )
+    filename = f"SAGE_EXPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
     return StreamingResponse(
         io.BytesIO(content),
-        media_type="text/plain",
+        media_type="text/plain; charset=windows-1252",
         headers={
-            "Content-Disposition": f"attachment; filename={filename}"
+            "Content-Disposition":
+            f"attachment; filename={filename}"
         },
     )
 
@@ -299,10 +331,10 @@ def export_sage_excel(
         raise HTTPException(status_code=500, detail="openpyxl not installed")
 
     invoices = invoice_query(
-        db,
-        start_date=start_date,
-        end_date=end_date,
-        only_not_exported=only_not_exported,
+    db,
+    start_date=start_date,
+    end_date=end_date,
+    only_not_exported=only_not_exported,
     ).all()
     errors = collect_sage_errors(invoices)
     cfg = sage_config()
