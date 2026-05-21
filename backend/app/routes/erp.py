@@ -164,69 +164,40 @@ def export_sage_txt(
     current_user: User = Depends(require_directeur),
     db: Session = Depends(get_db),
 ):
+
     invoices = (
-    invoice_query(
-        db,
-        start_date=start_date,
-        end_date=end_date,
-        only_not_exported=only_not_exported,
+        db.query(Invoice)
+        .options(
+            joinedload(Invoice.items),
+            joinedload(Invoice.client),
+        )
+        .filter(Invoice.status == InvoiceStatus.PENDING)
+        .all()
     )
-    .options(
-        joinedload(Invoice.items),
-        joinedload(Invoice.client),
-    )
-    .all()
-    )
-    errors = collect_sage_errors(invoices)
-    filename = f"SAGE_VENTES_{start_date or 'DEBUT'}_{end_date or 'FIN'}.txt".replace("-", "")
 
-    batch = SageExportBatch(
-        exported_by=current_user.id,
-        period_start=parse_date(start_date),
-        period_end=parse_date(end_date),
-        invoice_count=len(invoices),
-        total_amount=float(sum(inv.total or 0 for inv in invoices)),
-        filename=filename,
-        export_type="txt",
-        status="failed" if errors else "generated",
-        errors=errors,
-    )
-    db.add(batch)
-    db.flush()
+    if not invoices:
+        raise HTTPException(
+            status_code=400,
+            detail="Aucune facture trouvée."
+        )
 
-    if errors:
-        db.commit()
-        raise HTTPException(status_code=400, detail={"message": "Validation Sage échouée", "errors": errors})
+    filename = f"SAGE_VENTES_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
 
     content = build_sage_bytes(invoices, sage_config())
-    if mark_as_exported:
-        for inv in invoices:
-            inv.exported_to_sage = True
-            inv.sage_exported_at = datetime.utcnow()
-            inv.sage_export_batch_id = batch.id
 
-    db.add(AuditLog(
-        actor_id=current_user.id,
-        action="export_sage_txt",
-        entity_type="sage_export",
-        entity_id=batch.id,
-        description=f"Export Sage TXT généré pour {len(invoices)} facture(s).",
-        meta={"start_date": start_date, "end_date": end_date, "invoice_count": len(invoices)},
-    ))
-    db.add(Notification(
-        user_id=current_user.id,
-        type=NotificationType.SAGE_EXPORT,
-        title="Export Sage généré",
-        message=f"{len(invoices)} facture(s) exportée(s) dans {filename}.",
-    ))
-    db.commit()
+    if not content.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Export Sage vide."
+        )
 
     return StreamingResponse(
         io.BytesIO(content),
-        media_type="text/plain; charset=windows-1252",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        },
     )
-
 
 @router.post("/sage/export/drop-folder")
 def export_sage_to_drop_folder(
