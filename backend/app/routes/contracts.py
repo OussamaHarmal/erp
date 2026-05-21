@@ -43,11 +43,11 @@ from ..services.email_service import send_contract_invoice_email, send_email_wit
 router = APIRouter(prefix="/contracts", tags=["Contracts"])
 
 DURATION_PRICES = {
-    1: 65.0,
+    1: 67.0,
     3: 195.0,
     6: 390.0,
 }
-RENEWAL_MONTHLY_PRICE = 165.0
+RENEWAL_MONTHLY_PRICE = 167.0
 
 PROFILE_FIELDS = {
     "first_name", "last_name", "cin_number", "birth_date", "address", "phone", "city",
@@ -532,7 +532,7 @@ def approve_contract(
     contract.approved_at = datetime.utcnow()
     contract.approved_by = current_user.id
 
-    # prix = durée × 65
+    # prix = durée × 67
     duration = contract.duration_months or 1
     amount_ht = duration * 67
     tax = amount_ht * 0.20
@@ -557,7 +557,7 @@ def approve_contract(
         invoice_id=invoice.id,
         description=f"Contrat {contract.contract_number} - {duration} mois",
         quantity=duration,
-        unit_price=65,
+        unit_price=67,
         total=amount_ht,
     )
 
@@ -610,7 +610,7 @@ def renew_contract(
     """
     Client-only renewal request.
     Director/admin cannot create renewals directly; they approve/reject the generated PENDING renewal.
-    Renewal price is fixed at 165 MAD/month.
+    Renewal price is fixed at 167 MAD/month.
     """
     old_contract = get_contract_or_404(db, contract_id)
     check_resource_access(old_contract.client_id, current_user)

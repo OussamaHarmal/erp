@@ -5,8 +5,8 @@ import { CheckCircle, Download, Edit, FileText, Save, Search, X, XCircle } from 
 import { format } from 'date-fns';
 
 const STATUS_MAP = { draft: 'Brouillon', pending: 'En attente', approved: 'Approuvé', active: 'Actif', rejected: 'Rejeté', expired: 'Expiré', terminated: 'Résilié' };
-const PRICE_BY_DURATION = { 1: 65, 3: 195, 6: 390 };
-const DAILY_RENEWAL_RATE = 65;
+const PRICE_BY_DURATION = { 1: 67, 3: 195, 6: 390 };
+const DAILY_RENEWAL_RATE = 67;
 
 export default function DirectorContractsPage() {
   const [searchParams] = useSearchParams();

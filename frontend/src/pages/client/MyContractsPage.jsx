@@ -269,10 +269,10 @@ export default function MyContractsPage() {
 
             {canRenew(selected) && (
               <div style={{ marginTop: 18, padding: 12, background: 'var(--bg-elevated)', borderRadius: 10 }}>
-                <label className="form-label">Renouvellement à 165 DH/mois</label>
+                <label className="form-label">Renouvellement à 167 DH/mois</label>
                 <input className="form-input" type="number" min="1" max="24" value={renewMonths} onChange={e => setRenewMonths(e.target.value)} />
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                  Total renouvellement: {Number(renewMonths || 0) * 165} MAD HT. La facture est créée automatiquement après votre demande.
+                  Total renouvellement: {Number(renewMonths || 0) * 167} MAD HT. La facture est créée automatiquement après votre demande.
                 </p>
               </div>
             )}

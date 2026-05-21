@@ -125,7 +125,7 @@ def money_per_month(contract) -> str:
         return f"{int(monthly)}/mois" if monthly == int(monthly) else f"{monthly:.2f}/mois"
     if getattr(contract, "price", None):
         return f"{float(contract.price):.2f} MAD"
-    return "165/mois"
+    return "167/mois"
 
 
 def build_context(contract) -> dict:

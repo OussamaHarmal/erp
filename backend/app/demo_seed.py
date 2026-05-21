@@ -34,7 +34,7 @@ def seed_demo_data(db: Session, force: bool = False) -> dict:
         {
             "email": "demo.nova@example.com", "password": "Client@2024!",
             "first_name": "Salma", "last_name": "El Amrani", "phone": "+212 662 333 444",
-            "city": "Rabat", "company_name": "Nova Consulting Maroc", "ice": "001987654000032",
+            "city": "Rabat", "company_name": "Nova Consulting Maroc", "ice": "001987674000032",
             "activity": "Audit, formation et stratégie", "amount": 28500, "status": InvoiceStatus.PENDING,
             "contract_status": ContractStatus.ACTIVE, "exported": False,
         },

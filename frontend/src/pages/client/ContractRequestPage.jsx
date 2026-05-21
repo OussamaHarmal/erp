@@ -4,7 +4,7 @@ import { contractsAPI, clientsAPI } from '../../services/api';
 import { Building2, CheckCircle2, FileText, Send, UserRound, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const MONTHLY_PRICE = 65;
+const MONTHLY_PRICE = 67;
 const DURATIONS = [1, 3, 6];
 
 const addMonths = (dateStr, months) => {
