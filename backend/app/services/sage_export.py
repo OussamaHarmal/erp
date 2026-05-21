@@ -18,10 +18,12 @@ Important Sage rules:
 from __future__ import annotations
 
 import io
+import os
 import re
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Iterable, List, Optional
 
 from app.models import Invoice
@@ -38,6 +40,10 @@ class SageExportConfig:
     encoding: str = "cp1252"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TEXT / DATE / AMOUNT HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
 def clean_sage_text(value: object, max_len: int = 80) -> str:
     text = str(value or "")
     text = text.replace("\ufeff", "")
@@ -49,7 +55,6 @@ def clean_sage_text(value: object, max_len: int = 80) -> str:
 
 def sage_date(dt: Optional[datetime]) -> str:
     return dt.strftime("%d%m%y") if dt else ""
-
 
 
 def sage_amount(value: object) -> str:
@@ -108,10 +113,48 @@ def invoice_label(invoice: Invoice) -> str:
     return clean_sage_text(base.upper(), 80)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# VALIDATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+def validate_sage_invoice(invoice: Invoice) -> List[str]:
+    errors: List[str] = []
+
+    if not invoice.issue_date:
+        errors.append(f"{invoice.invoice_number}: date de pièce manquante")
+
+    if not invoice.due_date:
+        errors.append(f"{invoice.invoice_number}: date d'échéance manquante")
+
+    if not invoice.invoice_number:
+        errors.append("N° facture manquant")
+
+    total = float(invoice.total or 0)
+    subtotal = float(invoice.subtotal or 0)
+    tax = float(invoice.tax_amount or 0)
+
+    # FIX #1 — tolérance de 0.02€ pour les arrondis float en base de données
+    # L'ancienne vérification (debit != credit) causait des faux positifs
+    # ex: total=1000, subtotal=833.33, tax=166.67 → credit=1000.00 ✅
+    # mais parfois subtotal=833.34 en DB → credit=1000.01 ❌ (faux positif)
+    debit = round(total, 2)
+    credit = round(subtotal + tax, 2)
+    if abs(debit - credit) > 0.02:
+        errors.append(
+            f"{invoice.invoice_number}: écriture non équilibrée "
+            f"débit={debit:.2f} crédit={credit:.2f} (écart={abs(debit-credit):.2f}€)"
+        )
+
+    return errors
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LINE BUILDER
+# ─────────────────────────────────────────────────────────────────────────────
+
 def build_invoice_sage_lines(invoice: Invoice, config: SageExportConfig | None = None) -> List[str]:
     config = config or SageExportConfig()
 
-    # ===== SECURE VALUES =====
     total = float(invoice.total or 0)
     subtotal = float(invoice.subtotal or 0)
     tax_amount = float(invoice.tax_amount or 0)
@@ -119,29 +162,23 @@ def build_invoice_sage_lines(invoice: Invoice, config: SageExportConfig | None =
     if total <= 0:
         return []
 
+    # FIX #2 — si subtotal=0 mais total>0, on recalcule le HT depuis le total
+    # Évite de générer une ligne vente à 0 et une ligne TVA incorrecte
+    if subtotal <= 0:
+        tax_rate = float(invoice.tax_rate or 0)
+        if tax_rate > 0:
+            subtotal = round(total / (1 + tax_rate / 100), 2)
+            tax_amount = round(total - subtotal, 2)
+        else:
+            subtotal = total
+            tax_amount = 0.0
+
     date_piece = sage_date(invoice.issue_date)
     piece = sage_piece_number(invoice)
-
-    invoice_no = clean_sage_text(
-        str(invoice.invoice_number or "FACTURE"),
-        30
-    )
-
-    reference = clean_sage_text(
-        str(invoice_reference(invoice) or ""),
-        30
-    )
-
-    tiers = clean_sage_text(
-        str(invoice_tiers_code(invoice, config) or "CLIENT"),
-        17
-    )
-
-    label = clean_sage_text(
-        str(invoice_label(invoice) or "VENTE"),
-        80
-    )
-
+    invoice_no = clean_sage_text(str(invoice.invoice_number or "FACTURE"), 30)
+    reference = clean_sage_text(str(invoice_reference(invoice) or ""), 30)
+    tiers = clean_sage_text(str(invoice_tiers_code(invoice, config) or "CLIENT"), 17)
+    label = clean_sage_text(str(invoice_label(invoice) or "VENTE"), 80)
     due_date = sage_date(invoice.due_date)
 
     debit_ttc = sage_amount(total)
@@ -150,7 +187,7 @@ def build_invoice_sage_lines(invoice: Invoice, config: SageExportConfig | None =
 
     lines = []
 
-    # CLIENT TTC
+    # Ligne 1 — CLIENT TTC (débit)
     lines.append([
         config.journal_code,
         date_piece,
@@ -162,10 +199,10 @@ def build_invoice_sage_lines(invoice: Invoice, config: SageExportConfig | None =
         label,
         due_date,
         debit_ttc,
-        ""
+        "",
     ])
 
-    # VENTE HT
+    # Ligne 2 — VENTE HT (crédit)
     lines.append([
         config.journal_code,
         date_piece,
@@ -177,10 +214,10 @@ def build_invoice_sage_lines(invoice: Invoice, config: SageExportConfig | None =
         label,
         "",
         "",
-        credit_ht
+        credit_ht,
     ])
 
-    # TVA
+    # Ligne 3 — TVA (crédit, uniquement si TVA > 0)
     if tax_amount > 0:
         lines.append([
             config.journal_code,
@@ -193,50 +230,47 @@ def build_invoice_sage_lines(invoice: Invoice, config: SageExportConfig | None =
             f"TVA 20 {label}"[:80],
             "",
             "",
-            credit_tva
+            credit_tva,
         ])
 
-    # ===== CLEAN ROWS =====
-    clean_lines = []
+    return [";".join(str(x or "") for x in row) for row in lines]
 
-    for row in lines:
-        clean_row = [str(x or "") for x in row]
-        clean_lines.append(";".join(clean_row))
 
-    return clean_lines
-def validate_sage_invoice(invoice: Invoice) -> List[str]:
-    errors: List[str] = []
-    if not invoice.issue_date:
-        errors.append(f"{invoice.invoice_number}: date de pièce manquante")
-    if not invoice.due_date:
-        errors.append(f"{invoice.invoice_number}: date d'échéance manquante")
-    if not invoice.invoice_number:
-        errors.append("N° facture manquant")
-    debit = round(float(invoice.total or 0), 2)
-    credit = round(float(invoice.subtotal or 0) + float(invoice.tax_amount or 0), 2)
-    if debit != credit:
-        errors.append(f"{invoice.invoice_number}: écriture non équilibrée débit={debit:.2f} crédit={credit:.2f}")
-    return errors
-
+# ─────────────────────────────────────────────────────────────────────────────
+# TXT / BYTES / ZIP BUILDERS
+# ─────────────────────────────────────────────────────────────────────────────
 
 def build_sage_txt(invoices: Iterable[Invoice], config: SageExportConfig | None = None) -> str:
     config = config or SageExportConfig()
     lines: List[str] = []
+    skipped = 0
+
     for invoice in invoices:
-        lines.extend(build_invoice_sage_lines(invoice, config))
+        inv_lines = build_invoice_sage_lines(invoice, config)
+        if inv_lines:
+            lines.extend(inv_lines)
+        else:
+            skipped += 1
+
+    # FIX #3 — message d'erreur explicite avec contexte
     if not lines:
-        raise Exception("Aucune ligne Sage générée")
+        raise ValueError(
+            f"Aucune ligne Sage générée. "
+            f"{skipped} facture(s) ignorée(s) (total <= 0 ou données manquantes). "
+            "Vérifiez que les factures ont un montant total > 0, une date de pièce "
+            "et une date d'échéance."
+        )
 
     return config.line_ending.join(lines) + config.line_ending
 
+
 def build_sage_bytes(invoices: Iterable[Invoice], config: SageExportConfig | None = None) -> bytes:
     config = config or SageExportConfig()
-    txt = build_sage_txt(invoices, config)
-
-    if not txt.strip():
-        txt = "VIDE;VIDE;VIDE\r\n"
-
+    # FIX #4 — on ne passe plus par une liste (consommée une fois) : on matérialise
+    invoice_list = list(invoices)
+    txt = build_sage_txt(invoice_list, config)
     return txt.encode(config.encoding, errors="replace")
+
 
 def build_sage_zip_by_period(invoices: Iterable[Invoice], config: SageExportConfig | None = None) -> bytes:
     config = config or SageExportConfig()
@@ -252,20 +286,26 @@ def build_sage_zip_by_period(invoices: Iterable[Invoice], config: SageExportConf
     buffer.seek(0)
     return buffer.getvalue()
 
-from pathlib import Path
-from datetime import datetime
-import os
 
-SAGE_AUTO_IMPORT_FOLDER = Path(os.getenv("SAGE_AUTO_IMPORT_FOLDER", r"C:\SAGE_AUTO_IMPORT\pending"))
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTO-IMPORT FOLDER EXPORT
+# ─────────────────────────────────────────────────────────────────────────────
 
-def export_sage_to_auto_import_folder(invoices, config: SageExportConfig | None = None) -> str:
+SAGE_AUTO_IMPORT_FOLDER = Path(
+    os.getenv("SAGE_AUTO_IMPORT_FOLDER", r"C:\SAGE_AUTO_IMPORT\pending")
+)
+
+
+def export_sage_to_auto_import_folder(
+    invoices, config: SageExportConfig | None = None
+) -> str:
     config = config or SageExportConfig()
     SAGE_AUTO_IMPORT_FOLDER.mkdir(parents=True, exist_ok=True)
 
     filename = f"SAGE_VENTES_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     file_path = SAGE_AUTO_IMPORT_FOLDER / filename
 
-    content = build_sage_bytes(invoices, config)
+    content = build_sage_bytes(list(invoices), config)
 
     with open(file_path, "wb") as f:
         f.write(content)
